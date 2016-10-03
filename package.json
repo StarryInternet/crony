@@ -20,7 +20,7 @@
     "url": "https://github.com/StarryInternet/crony/issues"
   },
   "engines": {
-    "node": ">= 4.0.0"
+    "node": ">= 6.0.0"
   },
   "devDependencies": {
     "chai": "3.5.0",

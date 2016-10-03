@@ -4,7 +4,7 @@
 
 Node.js library for implementing supervisord event listeners.
 
-*Requires Node.js 4+*
+*Requires Node.js 6+*
 
 ### What?
 
