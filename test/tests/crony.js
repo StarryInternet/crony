@@ -1,3 +1,5 @@
+'use strict';
+
 const assert            = require('chai').assert;
 const expect            = require('chai').expect;
 const message           = require('../mocks/message');
