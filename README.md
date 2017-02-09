@@ -1,6 +1,6 @@
 # crony
 
-[ ![Codeship Status for StarryInternet/crony](https://app.codeship.com/projects/5c995790-6ba9-0134-8a4f-6efe74dd2a57/status?branch=master)](https://app.codeship.com/projects/177009)
+[![Build Status](https://travis-ci.org/StarryInternet/crony.svg?branch=master)](https://travis-ci.org/StarryInternet/crony)
 
 Node.js library for implementing supervisord event listeners.
 
