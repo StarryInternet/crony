@@ -6,6 +6,7 @@ const EventEmitter      = require('events').EventEmitter;
 const event             = require('../mocks/event');
 const parsedEvent       = require('../mocks/parsed-event');
 const createSandbox     = require('../helpers/sandbox');
+const fs                = require('fs');
 
 function getModule() {
   return require('rewire')('../../lib/listener');
@@ -78,10 +79,10 @@ describe( 'listener', () => {
   });
 
   it( 'should be able to parse multiple payloads', done => {
-    let Listener  = getModule();
-    let stdin     = new EventEmitter();
-    let listener  = new Listener( stdin, process.stdout );
-    let count     = 0;
+    let Listener    = getModule();
+    let stdin       = new EventEmitter();
+    let listener    = new Listener( stdin, process.stdout );
+    let count       = 0;
 
     stdin.resume        = () => {};
     stdin.setEncoding   = () => {};
@@ -89,7 +90,8 @@ describe( 'listener', () => {
     listener.listen();
     listener.on( 'event', ev => {
       assert.deepEqual( ev, parsedEvent );
-      if ( ++count === 4 ) {
+      // If this fires multiple times, we bound to too many `complete` events
+      if ( ++count >= 4 ) {
         done();
       }
     });
