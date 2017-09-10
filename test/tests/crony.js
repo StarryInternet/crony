@@ -2,15 +2,16 @@
 
 const assert            = require('chai').assert;
 const expect            = require('chai').expect;
-const message           = require('../mocks/message');
-const parsedMessage     = require('../mocks/parsed-message');
 const Listener          = require('../../lib/listener');
+const createSandbox     = require('../helpers/sandbox');
 
 function getModule() {
   return require('rewire')('../../lib/crony');
 }
 
 describe( 'crony', () => {
+
+  const sandbox = createSandbox();
 
   it( 'should export an instance of Listener', () => {
     let crony = getModule();

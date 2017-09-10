@@ -3,9 +3,9 @@
 const assert            = require('chai').assert;
 const sinon             = require('sinon');
 const EventEmitter      = require('events').EventEmitter;
-const noop              = () => {};
-const message           = require('../mocks/message');
-const ReadableStream    = require('stream').Readable;
+const event             = require('../mocks/event');
+const parsedEvent       = require('../mocks/parsed-event');
+const createSandbox     = require('../helpers/sandbox');
 
 function getModule() {
   return require('rewire')('../../lib/listener');
@@ -13,150 +13,168 @@ function getModule() {
 
 describe( 'listener', () => {
 
-  describe( '#constructor()', () => {
+  const sandbox = createSandbox();
 
-    it( 'should be a function', () => {
-      assert.isFunction( getModule() );
+  it( 'should be able to parse a a byte at a time', done => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let listener  = new Listener( stdin, process.stdout );
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.on( 'event', ev => {
+      assert.deepEqual( ev, parsedEvent );
+      done();
     });
 
-    it( 'should subclass EventEmitter', () => {
-      let Listener = getModule();
-      let a = {}, b = {};
-      let listener = new Listener( a, b );
-      assert.instanceOf( listener, EventEmitter );
+    event.split('').forEach( val => stdin.emit( 'data', val ) );
+  });
+
+  it( 'should be able to parse arbitrary chunks of data', done => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let listener  = new Listener( stdin, process.stdout );
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.on( 'event', ev => {
+      assert.deepEqual( ev, parsedEvent );
+      done();
     });
 
-    it( 'should set this.in and this.out', () => {
-      let Listener = getModule();
-      let a = {}, b = {};
-      let listener = new Listener( a, b );
-      assert.equal( listener.in, a, 'this.in not set correctly' );
-      assert.equal( listener.out, b, 'this.out not set correctly' );
+    let offsets = [
+      { start: 0, end: 4 },
+      { start: 4, end: 8 },
+      { start: 8, end: 25 },
+      { start: 25, end: 27 },
+      { start: 27, end: 50 },
+      { start: 50, end: 100 },
+      { start: 100, end: event.length }
+    ];
+
+    let chunks = offsets.map( o => event.slice( o.start, o.end ) );
+    chunks.forEach( val => stdin.emit( 'data', val ) );
+  });
+
+  it( 'should be able to parse a full payload', done => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let listener  = new Listener( stdin, process.stdout );
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.on( 'event', ev => {
+      assert.deepEqual( ev, parsedEvent );
+      done();
     });
 
+    stdin.emit( 'data', event );
+  });
+
+  it( 'should be able to parse multiple payloads', done => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let listener  = new Listener( stdin, process.stdout );
+    let count     = 0;
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.on( 'event', ev => {
+      assert.deepEqual( ev, parsedEvent );
+      if ( ++count === 4 ) {
+        done();
+      }
+    });
+
+    const emit = () => setTimeout( () => stdin.emit( 'data', event ), 0 );
+
+    Array( 4 ).fill( 0 ).forEach( emit );
+  });
+
+  it( 'should catch errors on emitting events', done => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let listener  = new Listener( stdin, process.stdout );
+    let count     = 0;
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.on( 'event', ev => {
+      count++;
+      if ( count === 1 ) {
+        throw new Error();
+      }
+      if ( count === 2 ) {
+        assert.deepEqual( ev, parsedEvent );
+        done();
+      }
+    });
+
+    stdin.emit( 'data', event );
+    stdin.emit( 'data', event );
+  });
+
+  it( 'should write RESULT 2 and OK to stdout on received messages', () => {
+    let Listener  = getModule();
+    let stdin     = new EventEmitter();
+    let write     = sinon.stub();
+    let listener  = new Listener( stdin, { write });
+
+    stdin.resume        = () => {};
+    stdin.setEncoding   = () => {};
+
+    listener.listen();
+    listener.listen();
+
+    event.split('').forEach( val => stdin.emit( 'data', val ) );
+
+    sinon.assert.calledWith( write, 'RESULT 2\nOK' );
+    sinon.assert.calledWith( write, 'READY\n' );
   });
 
   describe( '#listen()', () => {
 
-    it( 'should call resume input stream and set encoding', () => {
-      let Listener = getModule();
-      let resume = sinon.spy();
-      let setEncoding = sinon.spy();
-      let mock = {
-        in: { resume, setEncoding, on: noop },
-        out: { write: noop }
-      };
+    it( 'should be idempotent', done => {
+      let Listener  = getModule();
+      let stdin     = new EventEmitter();
+      let listener  = new Listener( stdin, process.stdout );
 
-      Listener.prototype.listen.call( mock );
-      assert.isTrue( resume.called, 'stdin.resume() never called' );
-      assert.isTrue( setEncoding.calledWith('utf8'), 'stdin.setEncoding() not called correctly' );
+      stdin.resume        = () => {};
+      stdin.setEncoding   = () => {};
+
+      listener.listen();
+      listener.listen();
+      listener.on( 'event', ev => {
+        assert.deepEqual( ev, parsedEvent );
+        done();
+      });
+
+      event.split('').forEach( val => stdin.emit( 'data', val ) );
     });
 
-    it( 'should listen to the input `data` event', () => {
-      let Listener = getModule();
-      let on = sinon.spy();
-      let mock = {
-        in: { resume: noop, setEncoding: noop, on },
-        out: { write: noop }
-      };
+    it( 'should write OK to stdout', () => {
+      let Listener  = getModule();
+      let stdin     = new EventEmitter();
+      let write     = sinon.stub();
+      let listener  = new Listener( stdin, { write });
 
-      Listener.prototype.listen.call( mock );
-      assert.isTrue( on.calledWith('data'), 'never bound to the input data event' );
-    });
+      stdin.resume        = () => {};
+      stdin.setEncoding   = () => {};
 
-    it( 'should bind onData to the `data` event', () => {
-      let Listener = getModule();
-      let ONDATA = Listener.__get__('ONDATA');
-      let onData = sinon.spy();
-      let mock = {
-        in: new ReadableStream(),
-        out: { write: noop },
-        [ ONDATA ]: onData
-      };
+      listener.listen();
+      listener.listen();
 
-      Listener.prototype.listen.call( mock );
-      mock.in.emit('data');
-      assert.isTrue( onData.called );
-    });
-
-    it( 'should write READY to the output stream', () => {
-      let Listener = getModule();
-      let write = sinon.spy();
-      let mock = {
-        in: { resume: noop, setEncoding: noop, on: noop },
-        out: { write }
-      };
-
-      Listener.prototype.listen.call( mock );
-      assert.isTrue( write.calledWith('READY\n'), 'never wrote READY to output stream' );
-    });
-
-    it( 'should be idempotent', () => {
-      let Listener = getModule();
-      let resume = sinon.spy();
-      let mock = {
-        in: { resume, setEncoding: noop, on: noop },
-        out: { write: noop }
-      };
-
-      Listener.prototype.listen.call( mock );
-      Listener.prototype.listen.call( mock );
-      assert.equal( resume.callCount, 1 );
-    });
-
-    it( 'should populate `listening` cache', () => {
-      let Listener = getModule();
-      let listening = Listener.__get__('listening');
-      let mock = {
-        in: { resume: noop, setEncoding: noop, on: noop },
-        out: { write: noop }
-      };
-
-      Listener.prototype.listen.call( mock );
-      assert.isTrue( listening.get( mock ) );
-    });
-
-  });
-
-  describe( '#onData()', () => {
-
-    it( 'should ackknowledge the event to the output stream', () => {
-      let Listener = getModule();
-      let ONDATA = Listener.__get__('ONDATA');
-      let write = sinon.spy();
-      let mock = {
-        out: { write },
-        emit: noop
-      };
-
-      Listener.prototype[ ONDATA ].call( mock, message );
-      assert.isTrue( write.calledWith('RESULT 2\nOK') );
-    });
-
-    it( 'should let the output stream know its ready for more events', () => {
-      let Listener = getModule();
-      let ONDATA = Listener.__get__('ONDATA');
-      let write = sinon.spy();
-      let mock = {
-        out: { write },
-        emit: noop
-      };
-
-      Listener.prototype[ ONDATA ].call( mock, message );
-      assert.isTrue( write.calledWith('READY\n') );
-    });
-
-    it( 'should parse the raw event string and emit events', () => {
-      let Listener = getModule();
-      let parse = Listener.__get__('parse');
-      let ONDATA = Listener.__get__('ONDATA');
-      let emit = sinon.spy();
-      let mock = { out: { write: noop }, emit };
-      let msg = parse( message );
-
-      Listener.prototype[ ONDATA ].call( mock, message );
-      assert.isTrue( emit.calledWith( 'PROCESS_STATE_RUNNING', msg ) );
-      assert.isTrue( emit.calledWith( 'event', msg ) );
+      sinon.assert.calledWith( write, 'READY\n' );
     });
 
   });
