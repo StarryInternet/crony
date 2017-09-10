@@ -1,6 +1,6 @@
 {
   "name": "crony",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Node.js library for implementing supervisord event listeners",
   "main": "index.js",
   "scripts": {
