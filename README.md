@@ -45,9 +45,9 @@ crony.listen();
 ## Development
 ```
 # Install dependencies
-npm install -g grunt-cli
+nvm install
 npm install
 
-# Run the tests
+# Run the linter and tests
 npm test
 ```
